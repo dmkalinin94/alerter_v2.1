@@ -5,6 +5,8 @@ import argparse
 import copy
 import datetime
 import fcntl
+import importlib
+import importlib.util
 import json
 import os
 import re
@@ -13,7 +15,13 @@ import sys
 import tempfile
 import time
 import traceback
+import warnings
 from contextlib import contextmanager
+
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+if importlib.util.find_spec("urllib3") is not None:
+    urllib3 = importlib.import_module("urllib3")
+    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 try:
     from config import local_settings_and_secrets as settings
@@ -68,7 +76,7 @@ STEP_TEMPLATES = {
 def args_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument("mode", choices=("add", "run", "watch", "select", "update", "del"))
-    parser.add_argument("--state-file", default=STATE_FILE)
+    parser.add_argument("--state-file")
     parser.add_argument("--lock-file")
     parser.add_argument("--lock-timeout", type=float, default=STATE_LOCK_TIMEOUT)
     parser.add_argument("--rootkey")
@@ -86,7 +94,10 @@ def args_parser():
     parser.add_argument("--tags", default="")
     parser.add_argument("--max-steps", type=int, default=MAX_STEPS)
     parser.add_argument("-v", "--verbose", action="store_true")
-    return parser.parse_args()
+    args = parser.parse_args()
+    if args.state_file is None:
+        args.state_file = "alerts.json" if args.mode == "run" else STATE_FILE
+    return args
 
 
 def log(message, level="INFO", component="watcher"):
